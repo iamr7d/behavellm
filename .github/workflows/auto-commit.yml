@@ -2,7 +2,7 @@ name: Auto Commit
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # Runs every 3 hours
+    - cron: '0 12 * * *'  # Run once a day at 12 PM UTC
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
@@ -28,46 +28,54 @@ jobs:
         git config --global user.name 'iamr7d'
         git config --global user.email 'rahulrajpvr7d.here@gmail.com'
         
-    - name: Make random changes and commit
+    - name: Make pattern commits
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
-        # Get current hour (UTC)
-        HOUR=$(date +%H)
+        # Pattern for "r7d" (1 represents commit, 0 represents no commit)
+        # This creates a 7x15 grid pattern for "r7d"
+        PATTERN=(
+          "0 0 1 1 1 0 0 0 1 1 1 0 0 1 1"
+          "0 1 1 0 0 1 0 1 1 0 0 1 0 1 1"
+          "0 1 1 0 0 0 0 1 1 0 0 1 0 1 1"
+          "0 1 1 1 1 0 0 1 1 1 1 1 0 1 1"
+          "0 1 1 0 1 0 0 1 1 0 0 1 0 1 1"
+          "0 1 1 0 0 1 0 1 1 0 0 1 0 1 1"
+          "0 1 1 0 0 1 0 1 1 0 0 1 0 0 1"
+        )
         
-        # Only run between 9 AM and 11 PM UTC (adjust these hours based on your timezone)
-        if [ $HOUR -ge 9 ] && [ $HOUR -le 23 ]; then
-          # Random number of commits (between 1-3 per run, since we run every 3 hours)
-          NUM_COMMITS=$((1 + RANDOM % 3))
-          
-          for ((i=1; i<=NUM_COMMITS; i++)); do
-            # Random delay between commits (1-300 seconds)
-            sleep $((1 + RANDOM % 300))
+        # Get current date
+        CURRENT_DATE=$(date '+%Y-%m-%d')
+        
+        # Get day of week (0-6, 0 is Sunday)
+        DAY_OF_WEEK=$(date +%w)
+        
+        # Get the row in our pattern (0-6)
+        ROW=$DAY_OF_WEEK
+        
+        # Read the pattern for today's row
+        IFS=' ' read -ra TODAY_PATTERN <<< "${PATTERN[$ROW]}"
+        
+        # Loop through each position in today's pattern
+        for ((i=0; i<${#TODAY_PATTERN[@]}; i++)); do
+          if [ "${TODAY_PATTERN[$i]}" = "1" ]; then
+            # Make multiple commits for this position
+            NUM_COMMITS=$((RANDOM % 3 + 1))  # 1-3 commits
             
-            # Get current date for the commit message
-            DATE=$(date '+%Y-%m-%d %H:%M:%S')
-            
-            # Randomly choose to add or remove comma
-            if [ $((RANDOM % 2)) -eq 0 ]; then
-              echo ", " >> data.txt
-              COMMIT_MSG="Add comma - $DATE"
-            else
-              # Remove last comma if file is not empty
-              if [ -s data.txt ]; then
-                sed -i '$ s/, $//' data.txt
-                COMMIT_MSG="Remove comma - $DATE"
-              else
-                echo ", " >> data.txt
-                COMMIT_MSG="Add comma - $DATE"
-              fi
-            fi
-            
-            # Commit and push changes
-            git add data.txt
-            git commit -m "$COMMIT_MSG"
-          done
-          
-          # Push all commits using token
-          git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
-          git push origin main
-        fi
+            for ((j=0; j<$NUM_COMMITS; j++)); do
+              # Add timestamp to make each commit unique
+              TIMESTAMP=$(date '+%H:%M:%S')
+              echo "Commit at $TIMESTAMP" >> data.txt
+              
+              # Random delay between commits (1-60 seconds)
+              sleep $((1 + RANDOM % 60))
+              
+              git add data.txt
+              git commit -m "Pattern commit - $CURRENT_DATE $TIMESTAMP"
+            done
+          fi
+        done
+        
+        # Push all commits using token
+        git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
+        git push origin main
