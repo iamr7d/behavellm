@@ -82,9 +82,9 @@ class GitHubAutoCommitter:
         logging.info(f"Reset daily counter. New max commits: {self.max_daily_commits}")
 
 def main():
-    # Replace these with your actual paths
-    REPO_PATH = "PATH_TO_YOUR_REPO"  # e.g., "C:/Users/username/my_repo"
-    TARGET_FILE = "PATH_TO_TARGET_FILE"  # e.g., "C:/Users/username/my_repo/commit_file.txt"
+    # Update with actual paths
+    REPO_PATH = "C:/Users/rahul/OneDrive/Desktop/Auto encoder variable"
+    TARGET_FILE = "C:/Users/rahul/OneDrive/Desktop/Auto encoder variable/data.txt"
 
     committer = GitHubAutoCommitter(REPO_PATH, TARGET_FILE)
     

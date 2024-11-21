@@ -1,0 +1,67 @@
+name: Auto Commit
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'  # Runs every 3 hours
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  auto-commit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+        
+    - name: Configure Git
+      run: |
+        git config --global user.name 'GitHub Actions Bot'
+        git config --global user.email 'rahulrajpvr7d.here@gmail.com'
+        
+    - name: Make random changes and commit
+      run: |
+        # Get current hour (UTC)
+        HOUR=$(date +%H)
+        
+        # Only run between 9 AM and 11 PM UTC (adjust these hours based on your timezone)
+        if [ $HOUR -ge 9 ] && [ $HOUR -le 23 ]; then
+          # Random number of commits (between 1-3 per run, since we run every 3 hours)
+          NUM_COMMITS=$((1 + RANDOM % 3))
+          
+          for ((i=1; i<=NUM_COMMITS; i++)); do
+            # Random delay between commits (1-300 seconds)
+            sleep $((1 + RANDOM % 300))
+            
+            # Get current date for the commit message
+            DATE=$(date '+%Y-%m-%d %H:%M:%S')
+            
+            # Randomly choose to add or remove comma
+            if [ $((RANDOM % 2)) -eq 0 ]; then
+              echo ", " >> data.txt
+              COMMIT_MSG="Add comma - $DATE"
+            else
+              # Remove last comma if file is not empty
+              if [ -s data.txt ]; then
+                sed -i '$ s/, $//' data.txt
+                COMMIT_MSG="Remove comma - $DATE"
+              else
+                echo ", " >> data.txt
+                COMMIT_MSG="Add comma - $DATE"
+              fi
+            fi
+            
+            # Commit and push changes
+            git add data.txt
+            git commit -m "$COMMIT_MSG"
+          done
+          
+          # Push all commits
+          git push
+        fi
