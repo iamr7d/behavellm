@@ -8,12 +8,15 @@ on:
 jobs:
   auto-commit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
+        token: ${{ secrets.PAT_TOKEN }}
         
     - name: Setup Python
       uses: actions/setup-python@v2
@@ -22,10 +25,12 @@ jobs:
         
     - name: Configure Git
       run: |
-        git config --global user.name 'GitHub Actions Bot'
+        git config --global user.name 'iamr7d'
         git config --global user.email 'rahulrajpvr7d.here@gmail.com'
         
     - name: Make random changes and commit
+      env:
+        PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
         # Get current hour (UTC)
         HOUR=$(date +%H)
@@ -62,6 +67,7 @@ jobs:
             git commit -m "$COMMIT_MSG"
           done
           
-          # Push all commits
-          git push
+          # Push all commits using token
+          git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
+          git push origin main
         fi
