@@ -1,0 +1,9 @@
+This is a sample data file that will be used for GitHub contributions.
+The auto-commit script will modify this file by adding and removing commas.
+
+Sample data points:
+1. Machine Learning
+2. Deep Learning
+3. Neural Networks
+4. Computer Vision
+5. Natural Language Processing
