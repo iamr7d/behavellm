@@ -1,4 +1,4 @@
-name: Write R7D Pattern (One-Time)
+name: Write R7D Pattern (Compressed)
 
 on:
   workflow_dispatch:  # Only run manually
@@ -25,7 +25,7 @@ jobs:
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
-        # Pattern for "r7d" (2: heavy commit, 1: light commit)
+        # Compressed pattern for "r7d" (2: heavy commit, 1: light commit)
         PATTERN=(
           "0 0 2 2 2 0 0 0 2 2 2 0 0 2 2"
           "0 2 2 0 0 2 0 2 2 0 0 2 0 2 2"
@@ -36,35 +36,56 @@ jobs:
           "0 2 2 0 0 2 0 2 2 0 0 2 0 0 2"
         )
         
-        for ROW in {0..6}; do
-          IFS=' ' read -ra TODAY_PATTERN <<< "${PATTERN[$ROW]}"
+        # Function to make a commit with a delay
+        make_commit() {
+          local row=$1
+          local col=$2
+          local intensity=$3
+          local timestamp=$(date '+%H:%M:%S')
+          echo "R7D Pattern - Row $row, Col $col at $timestamp" >> data.txt
+          git add data.txt
+          git commit -m "R7D Pattern - Row $row, Column $col"
+          sleep 2  # Shorter delay between commits
+        }
+        
+        # Process multiple rows in one day
+        process_rows() {
+          local start_row=$1
+          local end_row=$2
           
-          for ((i=0; i<${#TODAY_PATTERN[@]}; i++)); do
-            INTENSITY=${TODAY_PATTERN[$i]}
+          for ROW in $(seq $start_row $end_row); do
+            IFS=' ' read -ra TODAY_PATTERN <<< "${PATTERN[$ROW]}"
             
-            if [ "$INTENSITY" = "2" ]; then
-              COMMITS=5  # Heavy pattern
-            elif [ "$INTENSITY" = "1" ]; then
-              COMMITS=3  # Light pattern
-            else
-              COMMITS=1  # Background
-            fi
-            
-            for ((j=0; j<$COMMITS; j++)); do
-              TIMESTAMP=$(date '+%H:%M:%S')
-              echo "R7D Pattern - Row $ROW, Col $i at $TIMESTAMP" >> data.txt
-              git add data.txt
-              git commit -m "R7D Pattern - Row $ROW, Column $i"
-              sleep 5
+            for ((i=0; i<${#TODAY_PATTERN[@]}; i++)); do
+              INTENSITY=${TODAY_PATTERN[$i]}
+              
+              if [ "$INTENSITY" = "2" ]; then
+                COMMITS=3  # Reduced heavy pattern commits
+              elif [ "$INTENSITY" = "1" ]; then
+                COMMITS=2  # Reduced light pattern commits
+              else
+                COMMITS=1  # Background commits
+              fi
+              
+              for ((j=0; j<$COMMITS; j++)); do
+                make_commit $ROW $i $INTENSITY
+              done
             done
           done
           
-          # Push after each row
+          # Push after each set of rows
           git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
           git push origin main
           
-          # Wait between rows to spread commits across days
-          if [ $ROW -lt 6 ]; then
-            sleep 300  # Wait 5 minutes between rows
-          fi
-        done
+          # Wait between sets
+          sleep 60  # 1 minute between sets
+        }
+        
+        # Day 1 (Today) - Rows 0,1,2
+        process_rows 0 2
+        
+        # Day 2 (Tomorrow) - Rows 3,4
+        process_rows 3 4
+        
+        # Day 3 (Day after) - Rows 5,6
+        process_rows 5 6
