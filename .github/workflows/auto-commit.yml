@@ -2,7 +2,7 @@ name: Auto Commit
 
 on:
   schedule:
-    - cron: '0 12 * * *'  # Run once a day at 12 PM UTC
+    - cron: '0 */3 * * *'  # Run every 3 hours to spread commits throughout the day
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
@@ -28,54 +28,96 @@ jobs:
         git config --global user.name 'iamr7d'
         git config --global user.email 'rahulrajpvr7d.here@gmail.com'
         
-    - name: Make pattern commits
+    - name: Check and make commits
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
-        # Pattern for "r7d" (1 represents commit, 0 represents no commit)
-        # This creates a 7x15 grid pattern for "r7d"
-        PATTERN=(
-          "0 0 1 1 1 0 0 0 1 1 1 0 0 1 1"
-          "0 1 1 0 0 1 0 1 1 0 0 1 0 1 1"
-          "0 1 1 0 0 0 0 1 1 0 0 1 0 1 1"
-          "0 1 1 1 1 0 0 1 1 1 1 1 0 1 1"
-          "0 1 1 0 1 0 0 1 1 0 0 1 0 1 1"
-          "0 1 1 0 0 1 0 1 1 0 0 1 0 1 1"
-          "0 1 1 0 0 1 0 1 1 0 0 1 0 0 1"
-        )
-        
-        # Get current date
+        # Get current date and hour
         CURRENT_DATE=$(date '+%Y-%m-%d')
+        CURRENT_HOUR=$(date +%H)
+        
+        # Calculate total commits already made today
+        TOTAL_COMMITS=$(git log --since="midnight" --format=oneline | wc -l)
+        
+        # Check if we've already met our daily target (8-24 commits)
+        if [ $TOTAL_COMMITS -ge 8 ]; then
+          echo "Already achieved minimum daily commits ($TOTAL_COMMITS commits today)"
+          exit 0
+        fi
+        
+        if [ $TOTAL_COMMITS -ge 24 ]; then
+          echo "Already reached maximum daily commits ($TOTAL_COMMITS commits today)"
+          exit 0
+        fi
+        
+        # Pattern for "r7d" (2 represents heavy commit, 1 represents light commit, 0 represents minimum commit)
+        PATTERN=(
+          "0 0 2 2 2 0 0 0 2 2 2 0 0 2 2"
+          "0 2 2 0 0 2 0 2 2 0 0 2 0 2 2"
+          "0 2 2 0 0 0 0 2 2 0 0 2 0 2 2"
+          "0 2 2 2 2 0 0 2 2 2 2 2 0 2 2"
+          "0 2 2 0 2 0 0 2 2 0 0 2 0 2 2"
+          "0 2 2 0 0 2 0 2 2 0 0 2 0 2 2"
+          "0 2 2 0 0 2 0 2 2 0 0 2 0 0 2"
+        )
         
         # Get day of week (0-6, 0 is Sunday)
         DAY_OF_WEEK=$(date +%w)
-        
-        # Get the row in our pattern (0-6)
         ROW=$DAY_OF_WEEK
         
         # Read the pattern for today's row
         IFS=' ' read -ra TODAY_PATTERN <<< "${PATTERN[$ROW]}"
         
-        # Loop through each position in today's pattern
-        for ((i=0; i<${#TODAY_PATTERN[@]}; i++)); do
-          if [ "${TODAY_PATTERN[$i]}" = "1" ]; then
-            # Make multiple commits for this position
-            NUM_COMMITS=$((RANDOM % 3 + 1))  # 1-3 commits
-            
-            for ((j=0; j<$NUM_COMMITS; j++)); do
-              # Add timestamp to make each commit unique
-              TIMESTAMP=$(date '+%H:%M:%S')
-              echo "Commit at $TIMESTAMP" >> data.txt
-              
-              # Random delay between commits (1-60 seconds)
-              sleep $((1 + RANDOM % 60))
-              
-              git add data.txt
-              git commit -m "Pattern commit - $CURRENT_DATE $TIMESTAMP"
-            done
-          fi
-        done
+        # Function to make a commit
+        make_commit() {
+          local timestamp=$(date '+%H:%M:%S')
+          echo "Commit at $timestamp" >> data.txt
+          git add data.txt
+          git commit -m "Update - $CURRENT_DATE $timestamp"
+          TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
+        }
         
-        # Push all commits using token
-        git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
-        git push origin main
+        # Make pattern commits based on current hour (divide day into 8 segments)
+        SEGMENT=$((CURRENT_HOUR / 3))
+        if [ $SEGMENT -lt ${#TODAY_PATTERN[@]} ]; then
+          INTENSITY=${TODAY_PATTERN[$SEGMENT]}
+          
+          # Calculate remaining commits allowed
+          REMAINING_COMMITS=$((24 - TOTAL_COMMITS))
+          
+          # Number of commits based on pattern intensity and remaining allowance
+          if [ "$INTENSITY" = "2" ] && [ $REMAINING_COMMITS -gt 3 ]; then
+            COMMITS=$((RANDOM % 3 + 2))  # 2-4 commits for heavy pattern
+          elif [ "$INTENSITY" = "1" ] && [ $REMAINING_COMMITS -gt 2 ]; then
+            COMMITS=$((RANDOM % 2 + 1))  # 1-2 commits for light pattern
+          elif [ $REMAINING_COMMITS -gt 1 ]; then
+            COMMITS=1  # 1 commit for background
+          else
+            COMMITS=0
+          fi
+          
+          # Make the commits
+          for ((i=0; i<$COMMITS; i++)); do
+            if [ $TOTAL_COMMITS -lt 24 ]; then
+              make_commit
+              sleep $((1 + RANDOM % 60))  # Random delay between commits
+            fi
+          done
+        fi
+        
+        # If it's late in the day (after 8 PM) and we're below minimum, add more commits
+        if [ $CURRENT_HOUR -ge 20 ] && [ $TOTAL_COMMITS -lt 8 ]; then
+          NEEDED_COMMITS=$((8 - TOTAL_COMMITS))
+          for ((i=0; i<$NEEDED_COMMITS; i++)); do
+            make_commit
+            sleep $((1 + RANDOM % 30))
+          done
+        fi
+        
+        # Only push if we made any new commits
+        if [ $TOTAL_COMMITS -gt $(git log --since="midnight" --format=oneline | wc -l) ]; then
+          git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
+          git push origin main
+        else
+          echo "No new commits needed"
+        fi
