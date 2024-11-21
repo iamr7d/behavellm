@@ -1,8 +1,8 @@
-name: Auto Commit
+name: Daily Random Commits
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # Run every 3 hours to spread commits throughout the day
+    - cron: '0 */4 * * *'  # Run every 4 hours
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
@@ -17,11 +17,6 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.PAT_TOKEN }}
-        
-    - name: Setup Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
         
     - name: Configure Git
       run: |
@@ -39,7 +34,7 @@ jobs:
         # Calculate total commits already made today
         TOTAL_COMMITS=$(git log --since="midnight" --format=oneline | wc -l)
         
-        # Check if we've already met our daily target (8-24 commits)
+        # Check if we've already met our daily target
         if [ $TOTAL_COMMITS -ge 8 ]; then
           echo "Already achieved minimum daily commits ($TOTAL_COMMITS commits today)"
           exit 0
@@ -50,74 +45,45 @@ jobs:
           exit 0
         fi
         
-        # Pattern for "r7d" (2 represents heavy commit, 1 represents light commit, 0 represents minimum commit)
-        PATTERN=(
-          "0 0 2 2 2 0 0 0 2 2 2 0 0 2 2"
-          "0 2 2 0 0 2 0 2 2 0 0 2 0 2 2"
-          "0 2 2 0 0 0 0 2 2 0 0 2 0 2 2"
-          "0 2 2 2 2 0 0 2 2 2 2 2 0 2 2"
-          "0 2 2 0 2 0 0 2 2 0 0 2 0 2 2"
-          "0 2 2 0 0 2 0 2 2 0 0 2 0 2 2"
-          "0 2 2 0 0 2 0 2 2 0 0 2 0 0 2"
-        )
-        
-        # Get day of week (0-6, 0 is Sunday)
-        DAY_OF_WEEK=$(date +%w)
-        ROW=$DAY_OF_WEEK
-        
-        # Read the pattern for today's row
-        IFS=' ' read -ra TODAY_PATTERN <<< "${PATTERN[$ROW]}"
-        
         # Function to make a commit
         make_commit() {
           local timestamp=$(date '+%H:%M:%S')
-          echo "Commit at $timestamp" >> data.txt
+          echo "Daily commit at $timestamp" >> data.txt
           git add data.txt
-          git commit -m "Update - $CURRENT_DATE $timestamp"
+          git commit -m "Daily update - $CURRENT_DATE $timestamp"
           TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
         }
         
-        # Make pattern commits based on current hour (divide day into 8 segments)
-        SEGMENT=$((CURRENT_HOUR / 3))
-        if [ $SEGMENT -lt ${#TODAY_PATTERN[@]} ]; then
-          INTENSITY=${TODAY_PATTERN[$SEGMENT]}
+        # Determine how many commits to make this run
+        REMAINING_COMMITS=$((24 - TOTAL_COMMITS))
+        MAX_COMMITS_THIS_RUN=4  # Maximum commits per run
+        
+        if [ $REMAINING_COMMITS -gt 0 ]; then
+          # Random number of commits for this run
+          COMMITS_TO_MAKE=$((RANDOM % MAX_COMMITS_THIS_RUN + 1))
           
-          # Calculate remaining commits allowed
-          REMAINING_COMMITS=$((24 - TOTAL_COMMITS))
-          
-          # Number of commits based on pattern intensity and remaining allowance
-          if [ "$INTENSITY" = "2" ] && [ $REMAINING_COMMITS -gt 3 ]; then
-            COMMITS=$((RANDOM % 3 + 2))  # 2-4 commits for heavy pattern
-          elif [ "$INTENSITY" = "1" ] && [ $REMAINING_COMMITS -gt 2 ]; then
-            COMMITS=$((RANDOM % 2 + 1))  # 1-2 commits for light pattern
-          elif [ $REMAINING_COMMITS -gt 1 ]; then
-            COMMITS=1  # 1 commit for background
-          else
-            COMMITS=0
+          # Don't exceed remaining commits needed
+          if [ $COMMITS_TO_MAKE -gt $REMAINING_COMMITS ]; then
+            COMMITS_TO_MAKE=$REMAINING_COMMITS
           fi
           
           # Make the commits
-          for ((i=0; i<$COMMITS; i++)); do
-            if [ $TOTAL_COMMITS -lt 24 ]; then
-              make_commit
-              sleep $((1 + RANDOM % 60))  # Random delay between commits
-            fi
+          for ((i=0; i<$COMMITS_TO_MAKE; i++)); do
+            make_commit
+            sleep $((30 + RANDOM % 120))  # Random delay between commits (30-150 seconds)
           done
+          
+          # Push the commits
+          git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
+          git push origin main
         fi
         
-        # If it's late in the day (after 8 PM) and we're below minimum, add more commits
+        # If it's late (after 8 PM) and we're below minimum, add remaining commits
         if [ $CURRENT_HOUR -ge 20 ] && [ $TOTAL_COMMITS -lt 8 ]; then
           NEEDED_COMMITS=$((8 - TOTAL_COMMITS))
           for ((i=0; i<$NEEDED_COMMITS; i++)); do
             make_commit
-            sleep $((1 + RANDOM % 30))
+            sleep $((15 + RANDOM % 45))  # Shorter delays for catch-up commits
           done
-        fi
-        
-        # Only push if we made any new commits
-        if [ $TOTAL_COMMITS -gt $(git log --since="midnight" --format=oneline | wc -l) ]; then
-          git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
           git push origin main
-        else
-          echo "No new commits needed"
         fi

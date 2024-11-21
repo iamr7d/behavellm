@@ -1,0 +1,70 @@
+name: Write R7D Pattern (One-Time)
+
+on:
+  workflow_dispatch:  # Only run manually
+
+jobs:
+  write-pattern:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.PAT_TOKEN }}
+        
+    - name: Configure Git
+      run: |
+        git config --global user.name 'iamr7d'
+        git config --global user.email 'rahulrajpvr7d.here@gmail.com'
+        
+    - name: Write R7D Pattern
+      env:
+        PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+      run: |
+        # Pattern for "r7d" (2: heavy commit, 1: light commit)
+        PATTERN=(
+          "0 0 2 2 2 0 0 0 2 2 2 0 0 2 2"
+          "0 2 2 0 0 2 0 2 2 0 0 2 0 2 2"
+          "0 2 2 0 0 0 0 2 2 0 0 2 0 2 2"
+          "0 2 2 2 2 0 0 2 2 2 2 2 0 2 2"
+          "0 2 2 0 2 0 0 2 2 0 0 2 0 2 2"
+          "0 2 2 0 0 2 0 2 2 0 0 2 0 2 2"
+          "0 2 2 0 0 2 0 2 2 0 0 2 0 0 2"
+        )
+        
+        for ROW in {0..6}; do
+          IFS=' ' read -ra TODAY_PATTERN <<< "${PATTERN[$ROW]}"
+          
+          for ((i=0; i<${#TODAY_PATTERN[@]}; i++)); do
+            INTENSITY=${TODAY_PATTERN[$i]}
+            
+            if [ "$INTENSITY" = "2" ]; then
+              COMMITS=5  # Heavy pattern
+            elif [ "$INTENSITY" = "1" ]; then
+              COMMITS=3  # Light pattern
+            else
+              COMMITS=1  # Background
+            fi
+            
+            for ((j=0; j<$COMMITS; j++)); do
+              TIMESTAMP=$(date '+%H:%M:%S')
+              echo "R7D Pattern - Row $ROW, Col $i at $TIMESTAMP" >> data.txt
+              git add data.txt
+              git commit -m "R7D Pattern - Row $ROW, Column $i"
+              sleep 5
+            done
+          done
+          
+          # Push after each row
+          git remote set-url origin "https://$PAT_TOKEN@github.com/iamr7d/behavellm.git"
+          git push origin main
+          
+          # Wait between rows to spread commits across days
+          if [ $ROW -lt 6 ]; then
+            sleep 300  # Wait 5 minutes between rows
+          fi
+        done
